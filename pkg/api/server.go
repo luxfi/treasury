@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -18,16 +19,16 @@ import (
 
 type Server struct {
 	registry   *provider.Registry
-	ledger     *ledger.Ledger
+	ledgerSvc  *ledger.Service
 	compliance *compliance.Engine
 	router     chi.Router
 	server     *http.Server
 }
 
-func NewServer(registry *provider.Registry, listenAddr string) *Server {
+func NewServer(registry *provider.Registry, ledgerSvc *ledger.Service, listenAddr string) *Server {
 	s := &Server{
 		registry:   registry,
-		ledger:     ledger.New(),
+		ledgerSvc:  ledgerSvc,
 		compliance: compliance.NewEngine(),
 	}
 
@@ -81,8 +82,12 @@ func NewServer(registry *provider.Registry, listenAddr string) *Server {
 		// Ledger
 		r.Post("/ledger/accounts", s.handleCreateLedgerAccount)
 		r.Get("/ledger/accounts", s.handleListLedgerAccounts)
-		r.Get("/ledger/accounts/{accountId}/entries", s.handleGetLedgerEntries)
+		r.Get("/ledger/accounts/{address}/balances", s.handleGetAccountBalances)
+		r.Get("/ledger/accounts/{address}/balance", s.handleGetAccountBalance)
 		r.Post("/ledger/transactions", s.handlePostLedgerTransaction)
+		r.Get("/ledger/transactions", s.handleListLedgerTransactions)
+		r.Get("/ledger/transactions/{txId}", s.handleGetLedgerTransaction)
+		r.Post("/ledger/transactions/{txId}/revert", s.handleRevertLedgerTransaction)
 
 		// Compliance
 		r.Post("/compliance/check", s.handleComplianceCheck)
@@ -469,64 +474,124 @@ func (s *Server) handleListCounterparties(w http.ResponseWriter, r *http.Request
 
 // --- Ledger Handlers ---
 
+func (s *Server) ledgerName(r *http.Request) string {
+	if l := r.URL.Query().Get("ledger"); l != "" {
+		return l
+	}
+	return "default"
+}
+
 func (s *Server) handleCreateLedgerAccount(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name     string `json:"name"`
-		Type     string `json:"type"`
-		Currency string `json:"currency"`
+		Address  string            `json:"address"`
+		Type     string            `json:"type"`
+		Metadata map[string]string `json:"metadata,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	acct, err := s.ledger.CreateAccount(req.Name, req.Type, req.Currency)
+	acct, err := s.ledgerSvc.CreateAccount(r.Context(), s.ledgerName(r), req.Address, req.Type, req.Metadata)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusCreated, acct)
 }
 
 func (s *Server) handleListLedgerAccounts(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.ledger.ListAccounts())
+	accts, err := s.ledgerSvc.ListAccounts(r.Context(), s.ledgerName(r))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, accts)
 }
 
-func (s *Server) handleGetLedgerEntries(w http.ResponseWriter, r *http.Request) {
-	entries := s.ledger.GetEntries(chi.URLParam(r, "accountId"))
-	writeJSON(w, http.StatusOK, entries)
+func (s *Server) handleGetAccountBalances(w http.ResponseWriter, r *http.Request) {
+	balances, err := s.ledgerSvc.GetAccountBalances(r.Context(), s.ledgerName(r), chi.URLParam(r, "address"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, balances)
+}
+
+func (s *Server) handleGetAccountBalance(w http.ResponseWriter, r *http.Request) {
+	asset := r.URL.Query().Get("asset")
+	if asset == "" {
+		writeError(w, http.StatusBadRequest, "asset query param required")
+		return
+	}
+	bal, err := s.ledgerSvc.GetAccountBalance(r.Context(), s.ledgerName(r), chi.URLParam(r, "address"), asset)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, bal)
 }
 
 func (s *Server) handlePostLedgerTransaction(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Description string `json:"description"`
-		Entries     []struct {
-			AccountID string  `json:"account_id"`
-			Amount    float64 `json:"amount"`
-			Currency  string  `json:"currency"`
-			Direction string  `json:"direction"`
-		} `json:"entries"`
-	}
+	var req ledger.CreateTransactionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-
-	entries := make([]ledger.TransactionEntry, len(req.Entries))
-	for i, e := range req.Entries {
-		entries[i] = ledger.TransactionEntry{
-			AccountID:   e.AccountID,
-			AmountFloat: e.Amount,
-			Currency:    e.Currency,
-			Direction:   e.Direction,
-		}
-	}
-
-	txID, err := s.ledger.PostTransaction(req.Description, entries)
+	tx, err := s.ledgerSvc.PostTransaction(r.Context(), s.ledgerName(r), req)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]string{"transaction_id": txID})
+	writeJSON(w, http.StatusCreated, tx)
+}
+
+func (s *Server) handleListLedgerTransactions(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	offset := 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			offset = n
+		}
+	}
+	txs, err := s.ledgerSvc.ListTransactions(r.Context(), s.ledgerName(r), limit, offset)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, txs)
+}
+
+func (s *Server) handleGetLedgerTransaction(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "txId"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid transaction ID")
+		return
+	}
+	tx, err := s.ledgerSvc.GetTransaction(r.Context(), s.ledgerName(r), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, tx)
+}
+
+func (s *Server) handleRevertLedgerTransaction(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "txId"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid transaction ID")
+		return
+	}
+	tx, err := s.ledgerSvc.RevertTransaction(r.Context(), s.ledgerName(r), id)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, tx)
 }
 
 // --- Compliance Handlers ---
