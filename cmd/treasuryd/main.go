@@ -20,6 +20,7 @@ import (
 	"github.com/luxfi/treasury/pkg/provider/marqeta"
 	"github.com/luxfi/treasury/pkg/provider/mercury"
 	"github.com/luxfi/treasury/pkg/provider/moderntreasury"
+	"github.com/luxfi/treasury/pkg/provider/mpesa"
 	"github.com/luxfi/treasury/pkg/provider/plaid"
 	"github.com/luxfi/treasury/pkg/provider/square"
 	"github.com/luxfi/treasury/pkg/provider/stripe"
@@ -145,6 +146,28 @@ func main() {
 			APIKey:  key,
 		}))
 		log.Info().Msg("Increase provider registered")
+	}
+
+	// M-Pesa — Safaricom Daraja (KE mobile money: B2C, C2B STK Push, B2B)
+	if key := os.Getenv("MPESA_CONSUMER_KEY"); key != "" {
+		baseURL := envOr("MPESA_BASE_URL", mpesa.SandboxURL)
+		if env := os.Getenv("MPESA_ENVIRONMENT"); env == "production" {
+			baseURL = envOr("MPESA_BASE_URL", mpesa.ProdURL)
+		}
+		registry.Register(mpesa.New(mpesa.Config{
+			BaseURL:           baseURL,
+			ConsumerKey:       key,
+			ConsumerSecret:    os.Getenv("MPESA_CONSUMER_SECRET"),
+			Shortcode:         os.Getenv("MPESA_SHORTCODE"),
+			InitiatorName:     os.Getenv("MPESA_INITIATOR_NAME"),
+			InitiatorPassword: os.Getenv("MPESA_INITIATOR_PASSWORD"),
+			Passkey:           os.Getenv("MPESA_PASSKEY"),
+			CallbackURL:       os.Getenv("MPESA_CALLBACK_URL"),
+			QueueTimeoutURL:   os.Getenv("MPESA_QUEUE_TIMEOUT_URL"),
+			ResultURL:         os.Getenv("MPESA_RESULT_URL"),
+			Environment:       envOr("MPESA_ENVIRONMENT", "sandbox"),
+		}))
+		log.Info().Msg("M-Pesa provider registered")
 	}
 
 	// Lithic — card issuing (virtual + physical)
