@@ -35,6 +35,12 @@ func New(cfg Config) *Provider {
 func (p *Provider) Name() string { return "increase" }
 
 func (p *Provider) doRequest(ctx context.Context, method, path string, body interface{}) ([]byte, error) {
+	return p.doRequestIdem(ctx, method, path, body, "")
+}
+
+// doRequestIdem sends the request with an optional Idempotency-Key.
+// https://increase.com/documentation/idempotency-keys
+func (p *Provider) doRequestIdem(ctx context.Context, method, path string, body interface{}, idemKey string) ([]byte, error) {
 	var reqBody io.Reader
 	if body != nil {
 		b, _ := json.Marshal(body)
@@ -46,6 +52,9 @@ func (p *Provider) doRequest(ctx context.Context, method, path string, body inte
 	}
 	req.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
 	req.Header.Set("Content-Type", "application/json")
+	if idemKey != "" {
+		req.Header.Set("Idempotency-Key", idemKey)
+	}
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -164,7 +173,13 @@ func (p *Provider) CreatePayment(ctx context.Context, req *types.CreatePaymentRe
 			"account_number":       cp.AccountNumber,
 			"statement_descriptor": req.Reference,
 		}
-		data, err := p.doRequest(ctx, "POST", "/ach_transfers", body)
+		const endpoint = "/ach_transfers"
+		idem := req.IdempotencyKey
+		if idem == "" {
+			canonical, _ := json.Marshal(body)
+			idem = provider.DeriveIdempotencyKey(req.OrgID, endpoint, canonical)
+		}
+		data, err := p.doRequestIdem(ctx, "POST", endpoint, body, idem)
 		if err != nil {
 			return nil, err
 		}
@@ -190,7 +205,13 @@ func (p *Provider) CreatePayment(ctx context.Context, req *types.CreatePaymentRe
 			"account_number":        cp.AccountNumber,
 			"message_to_recipient":  req.Reference,
 		}
-		data, err := p.doRequest(ctx, "POST", "/wire_transfers", body)
+		const endpoint = "/wire_transfers"
+		idem := req.IdempotencyKey
+		if idem == "" {
+			canonical, _ := json.Marshal(body)
+			idem = provider.DeriveIdempotencyKey(req.OrgID, endpoint, canonical)
+		}
+		data, err := p.doRequestIdem(ctx, "POST", endpoint, body, idem)
 		if err != nil {
 			return nil, err
 		}
