@@ -121,16 +121,27 @@ func (p *Provider) GetBalance(_ context.Context, _ string) (*types.Balance, erro
 }
 
 func (p *Provider) CreatePayment(ctx context.Context, req *types.CreatePaymentRequest) (*types.Payment, error) {
+	// Square requires idempotency_key as a JSON body field, not a header.
+	// https://developer.squareup.com/docs/working-with-apis/idempotency
 	body := map[string]interface{}{
-		"source_id":      req.SourceAccountID,
+		"source_id": req.SourceAccountID,
 		"amount_money": map[string]interface{}{
 			"amount":   req.Amount,
 			"currency": req.Currency,
 		},
-		"idempotency_key": fmt.Sprintf("lux_%d", time.Now().UnixNano()),
 	}
 
-	data, err := p.doRequest(ctx, "POST", "/v2/payments", body)
+	const endpoint = "/v2/payments"
+	idem := req.IdempotencyKey
+	if idem == "" {
+		// Compute the deterministic key over the body WITHOUT the
+		// idempotency_key field to avoid a hash-feeds-itself loop.
+		canonical, _ := json.Marshal(body)
+		idem = provider.DeriveIdempotencyKey(req.OrgID, endpoint, canonical)
+	}
+	body["idempotency_key"] = idem
+
+	data, err := p.doRequest(ctx, "POST", endpoint, body)
 	if err != nil {
 		return nil, err
 	}
