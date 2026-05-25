@@ -33,6 +33,12 @@ func New(cfg Config) provider.Provider {
 func (p *Provider) Name() string { return "moderntreasury" }
 
 func (p *Provider) doRequest(ctx context.Context, method, path string, body interface{}) ([]byte, error) {
+	return p.doRequestIdem(ctx, method, path, body, "")
+}
+
+// doRequestIdem sends the request with an optional Idempotency-Key.
+// https://docs.moderntreasury.com/reference/idempotent-requests
+func (p *Provider) doRequestIdem(ctx context.Context, method, path string, body interface{}, idemKey string) ([]byte, error) {
 	var reqBody io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -48,6 +54,9 @@ func (p *Provider) doRequest(ctx context.Context, method, path string, body inte
 	}
 	req.SetBasicAuth(p.cfg.OrgID, p.cfg.APIKey)
 	req.Header.Set("Content-Type", "application/json")
+	if idemKey != "" {
+		req.Header.Set("Idempotency-Key", idemKey)
+	}
 
 	resp, err := p.client.Do(req)
 	if err != nil {
@@ -178,7 +187,14 @@ func (p *Provider) CreatePayment(ctx context.Context, req *types.CreatePaymentRe
 		body["receiving_account_id"] = req.Counterparty.ID
 	}
 
-	data, err := p.doRequest(ctx, "POST", "/payment_orders", body)
+	const endpoint = "/payment_orders"
+	idem := req.IdempotencyKey
+	if idem == "" {
+		canonical, _ := json.Marshal(body)
+		idem = provider.DeriveIdempotencyKey(req.OrgID, endpoint, canonical)
+	}
+
+	data, err := p.doRequestIdem(ctx, "POST", endpoint, body, idem)
 	if err != nil {
 		return nil, err
 	}
