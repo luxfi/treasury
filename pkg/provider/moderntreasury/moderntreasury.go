@@ -82,7 +82,12 @@ func (p *Provider) CreateAccount(ctx context.Context, orgID string, req *provide
 		"account_type": "internal",
 	}
 
-	data, err := p.doRequest(ctx, "POST", "/internal_accounts", body)
+	idem := req.IdempotencyKey
+	if idem == "" {
+		canonical, _ := json.Marshal(body)
+		idem = provider.DeriveIdempotencyKey(orgID, "/internal_accounts", canonical)
+	}
+	data, err := p.doRequestIdem(ctx, "POST", "/internal_accounts", body, idem)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +314,12 @@ func (p *Provider) CreateCounterparty(ctx context.Context, cp *types.Counterpart
 		body["email"] = cp.Email
 	}
 
-	data, err := p.doRequest(ctx, "POST", "/counterparties", body)
+	idem := cp.IdempotencyKey
+	if idem == "" {
+		canonical, _ := json.Marshal(body)
+		idem = provider.DeriveIdempotencyKey("", "/counterparties", canonical)
+	}
+	data, err := p.doRequestIdem(ctx, "POST", "/counterparties", body, idem)
 	if err != nil {
 		return nil, err
 	}

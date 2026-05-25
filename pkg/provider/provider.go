@@ -47,6 +47,11 @@ type CreateAccountRequest struct {
 	Currency    string `json:"currency"`
 	AccountType string `json:"account_type"` // checking, savings, virtual
 	Country     string `json:"country,omitempty"`
+
+	// IdempotencyKey, if non-empty, is forwarded as the provider's
+	// idempotency header / field on account creation. Empty → adapter
+	// derives one deterministically via DeriveIdempotencyKey.
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }
 
 // ErrNotSupported is returned when a provider doesn't support an operation.
