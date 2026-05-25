@@ -36,6 +36,12 @@ func New(cfg Config) provider.Provider {
 func (p *Provider) Name() string { return "wise" }
 
 func (p *Provider) doRequest(ctx context.Context, method, path string, body interface{}) ([]byte, error) {
+	return p.doRequestIdem(ctx, method, path, body, "")
+}
+
+// doRequestIdem sends the request with an optional X-idempotence-uuid.
+// https://docs.wise.com/api-docs/features/idempotency
+func (p *Provider) doRequestIdem(ctx context.Context, method, path string, body interface{}, idemKey string) ([]byte, error) {
 	var reqBody io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -51,6 +57,9 @@ func (p *Provider) doRequest(ctx context.Context, method, path string, body inte
 	}
 	req.Header.Set("Authorization", "Bearer "+p.cfg.APIToken)
 	req.Header.Set("Content-Type", "application/json")
+	if idemKey != "" {
+		req.Header.Set("X-idempotence-uuid", idemKey)
+	}
 
 	resp, err := p.client.Do(req)
 	if err != nil {
@@ -180,7 +189,7 @@ func (p *Provider) CreatePayment(ctx context.Context, req *types.CreatePaymentRe
 		return nil, err
 	}
 
-	// Step 2: Create transfer
+	// Step 2: Create transfer (the money-moving call — idempotent).
 	transferBody := map[string]interface{}{
 		"targetAccount": req.DestAccountID,
 		"quoteUuid":     quote.ID,
@@ -189,7 +198,14 @@ func (p *Provider) CreatePayment(ctx context.Context, req *types.CreatePaymentRe
 		},
 	}
 
-	data, err := p.doRequest(ctx, "POST", "/v1/transfers", transferBody)
+	const transferEndpoint = "/v1/transfers"
+	idem := req.IdempotencyKey
+	if idem == "" {
+		canonical, _ := json.Marshal(transferBody)
+		idem = provider.DeriveIdempotencyKey(req.OrgID, transferEndpoint, canonical)
+	}
+
+	data, err := p.doRequestIdem(ctx, "POST", transferEndpoint, transferBody, idem)
 	if err != nil {
 		return nil, err
 	}
