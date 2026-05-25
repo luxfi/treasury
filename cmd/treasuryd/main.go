@@ -17,11 +17,11 @@ import (
 	"github.com/luxfi/treasury/pkg/provider/currencycloud"
 	"github.com/luxfi/treasury/pkg/provider/increase"
 	"github.com/luxfi/treasury/pkg/provider/lithic"
-	"github.com/luxfi/treasury/pkg/provider/marqeta"
+	_ "github.com/luxfi/treasury/pkg/provider/marqeta" // placeholder — see pkg/provider/marqeta/doc.go
 	"github.com/luxfi/treasury/pkg/provider/mercury"
 	"github.com/luxfi/treasury/pkg/provider/moderntreasury"
 	"github.com/luxfi/treasury/pkg/provider/mpesa"
-	"github.com/luxfi/treasury/pkg/provider/plaid"
+	_ "github.com/luxfi/treasury/pkg/provider/plaid" // placeholder — see pkg/provider/plaid/doc.go
 	"github.com/luxfi/treasury/pkg/provider/square"
 	"github.com/luxfi/treasury/pkg/provider/column"
 	"github.com/luxfi/treasury/pkg/provider/unit"
@@ -45,14 +45,12 @@ func main() {
 		log.Info().Msg("CurrencyCloud provider registered")
 	}
 
-	// Plaid — bank account linking + identity
+	// Plaid — placeholder adapter; not production-ready. Skip registration
+	// even if PLAID_CLIENT_ID is set so the router never sees a lying stub.
 	if clientID := os.Getenv("PLAID_CLIENT_ID"); clientID != "" {
-		registry.Register(plaid.New(plaid.Config{
-			BaseURL:  envOr("PLAID_BASE_URL", plaid.SandboxURL),
-			ClientID: clientID,
-			Secret:   os.Getenv("PLAID_SECRET"),
-		}))
-		log.Info().Msg("Plaid provider registered")
+		log.Warn().
+			Str("todo", "see github.com/luxfi/treasury/pkg/provider/plaid/doc.go").
+			Msg("plaid adapter is a placeholder, skipping registration")
 	}
 
 	// Modern Treasury — payment operations + ledger
@@ -93,14 +91,12 @@ func main() {
 		log.Info().Msg("Wise provider registered")
 	}
 
-	// Marqeta — card issuing
-	if token := os.Getenv("MARQETA_APP_TOKEN"); token != "" {
-		registry.Register(marqeta.New(marqeta.Config{
-			BaseURL:     envOr("MARQETA_BASE_URL", marqeta.SandboxURL),
-			AppToken:    token,
-			AccessToken: os.Getenv("MARQETA_ACCESS_TOKEN"),
-		}))
-		log.Info().Msg("Marqeta provider registered")
+	// Marqeta — placeholder adapter; not production-ready. Skip registration
+	// even if MARQETA_APP_TOKEN is set so the router never sees a lying stub.
+	if os.Getenv("MARQETA_APP_TOKEN") != "" {
+		log.Warn().
+			Str("todo", "see github.com/luxfi/treasury/pkg/provider/marqeta/doc.go").
+			Msg("marqeta adapter is a placeholder, skipping registration")
 	}
 
 	// Bridge (by Column) — stablecoin orchestration
