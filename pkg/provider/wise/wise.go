@@ -376,7 +376,12 @@ func (p *Provider) CreateCounterparty(ctx context.Context, cp *types.Counterpart
 		}
 	}
 
-	data, err := p.doRequest(ctx, "POST", "/v1/accounts", body)
+	idem := cp.IdempotencyKey
+	if idem == "" {
+		canonical, _ := json.Marshal(body)
+		idem = provider.DeriveIdempotencyKey("", "/v1/accounts", canonical)
+	}
+	data, err := p.doRequestIdem(ctx, "POST", "/v1/accounts", body, idem)
 	if err != nil {
 		return nil, err
 	}
