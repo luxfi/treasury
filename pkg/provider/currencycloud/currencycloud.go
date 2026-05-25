@@ -118,6 +118,14 @@ func (p *Provider) CreateAccount(ctx context.Context, orgID string, req *provide
 	form.Set("account_name", req.AccountName)
 	form.Set("legal_entity_type", "company")
 
+	// CurrencyCloud uses a form field "unique_request_id" for idempotency.
+	// https://developer.currencycloud.com/documentation/api/idempotency-keys
+	idem := req.IdempotencyKey
+	if idem == "" {
+		idem = provider.DeriveIdempotencyKey(orgID, "/v2/accounts/create", []byte(form.Encode()))
+	}
+	form.Set("unique_request_id", idem)
+
 	data, err := p.doRequest(ctx, "POST", "/v2/accounts/create", form)
 	if err != nil {
 		return nil, err
@@ -475,6 +483,12 @@ func (p *Provider) CreateCounterparty(ctx context.Context, cp *types.Counterpart
 	form := url.Values{}
 	form.Set("name", cp.Name)
 	form.Set("bank_account_holder_name", cp.Name)
+	// CurrencyCloud uses a form field "unique_request_id" for idempotency.
+	idem := cp.IdempotencyKey
+	if idem == "" {
+		idem = provider.DeriveIdempotencyKey("", "/v2/beneficiaries/create", []byte(form.Encode()))
+	}
+	form.Set("unique_request_id", idem)
 	if cp.IBAN != "" {
 		form.Set("iban", cp.IBAN)
 	}

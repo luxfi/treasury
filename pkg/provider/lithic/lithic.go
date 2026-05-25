@@ -77,8 +77,14 @@ func (p *Provider) Capabilities() *types.ProviderCapability {
 	}
 }
 
-func (p *Provider) CreateAccount(ctx context.Context, _ string, _ *provider.CreateAccountRequest) (*types.BankAccount, error) {
-	data, err := p.doRequest(ctx, "POST", "/financial_accounts", map[string]interface{}{"type": "ISSUING"})
+func (p *Provider) CreateAccount(ctx context.Context, orgID string, req *provider.CreateAccountRequest) (*types.BankAccount, error) {
+	body := map[string]interface{}{"type": "ISSUING"}
+	idem := req.IdempotencyKey
+	if idem == "" {
+		canonical, _ := json.Marshal(body)
+		idem = provider.DeriveIdempotencyKey(orgID, "/financial_accounts", canonical)
+	}
+	data, err := p.doRequestIdem(ctx, "POST", "/financial_accounts", body, idem)
 	if err != nil {
 		return nil, err
 	}
