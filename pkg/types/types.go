@@ -100,6 +100,17 @@ type CreatePaymentRequest struct {
 	Reference       string            `json:"reference,omitempty"`
 	Description     string            `json:"description,omitempty"`
 	Meta            map[string]string `json:"meta,omitempty"`
+	// IdempotencyKey is a caller-supplied token forwarded to the upstream
+	// provider's idempotency header (e.g. Column "Idempotency-Key", Wise
+	// "X-idempotence-uuid", Square body field "idempotency_key"). A retry
+	// with the same key MUST be safe at the provider. If empty, adapters
+	// fall back to a deterministic SHA-256 of (orgID || endpoint ||
+	// canonical request body) via provider.DeriveIdempotencyKey — never a
+	// wall-clock-derived value.
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	// OrgID is folded into the deterministic-fallback key so two orgs
+	// sending identical bodies do not collide on a single provider key.
+	OrgID string `json:"org_id,omitempty"`
 }
 
 // Counterparty is the external party in a payment.
@@ -155,6 +166,10 @@ type CreateFXConversionRequest struct {
 	Amount       string `json:"amount"`
 	FixedSide    string `json:"fixed_side"` // buy or sell
 	QuoteID      string `json:"quote_id,omitempty"`
+	// IdempotencyKey — see CreatePaymentRequest.IdempotencyKey.
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	// OrgID — see CreatePaymentRequest.OrgID.
+	OrgID string `json:"org_id,omitempty"`
 }
 
 // --- Multi-Currency Wallet Types ---

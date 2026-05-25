@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sync"
 
@@ -49,6 +51,25 @@ type CreateAccountRequest struct {
 
 // ErrNotSupported is returned when a provider doesn't support an operation.
 var ErrNotSupported = fmt.Errorf("operation not supported by this provider")
+
+// DeriveIdempotencyKey returns a stable SHA-256 hex digest of
+// (orgID || 0x00 || endpoint || 0x00 || canonicalRequestBody) for use
+// when the caller did not supply an explicit IdempotencyKey. The output
+// is purely a function of its inputs — a retry with the same orgID,
+// endpoint, and body produces the same key, so the upstream provider
+// can collapse duplicates. It is NEVER derived from a wall-clock value.
+//
+// Adapters MUST prefer the caller-supplied req.IdempotencyKey when set,
+// and fall back to this helper only when it is empty.
+func DeriveIdempotencyKey(orgID, endpoint string, canonicalBody []byte) string {
+	h := sha256.New()
+	h.Write([]byte(orgID))
+	h.Write([]byte{0})
+	h.Write([]byte(endpoint))
+	h.Write([]byte{0})
+	h.Write(canonicalBody)
+	return hex.EncodeToString(h.Sum(nil))
+}
 
 // Registry holds all registered treasury providers.
 type Registry struct {
