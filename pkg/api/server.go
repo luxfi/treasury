@@ -232,6 +232,16 @@ func (s *Server) handleCreatePayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Populate IdempotencyKey / OrgID from request headers when the body
+	// did not already carry them. Header takes precedence ONLY if the body
+	// value is empty — the body-level key is the most-specific signal.
+	if req.Payment.IdempotencyKey == "" {
+		req.Payment.IdempotencyKey = r.Header.Get("Idempotency-Key")
+	}
+	if req.Payment.OrgID == "" {
+		req.Payment.OrgID = r.Header.Get("X-Org-ID")
+	}
+
 	// Compliance check
 	result := s.compliance.Check(&req.Payment)
 	if !result.Allowed {
@@ -347,6 +357,13 @@ func (s *Server) handleCreateFXConversion(w http.ResponseWriter, r *http.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
+	}
+
+	if req.Conversion.IdempotencyKey == "" {
+		req.Conversion.IdempotencyKey = r.Header.Get("Idempotency-Key")
+	}
+	if req.Conversion.OrgID == "" {
+		req.Conversion.OrgID = r.Header.Get("X-Org-ID")
 	}
 
 	if req.Provider == "" {
