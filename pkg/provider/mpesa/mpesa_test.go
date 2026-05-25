@@ -217,6 +217,43 @@ func TestCreatePaymentB2C(t *testing.T) {
 	}
 }
 
+// IdempotencyKey, when set, MUST take precedence over Reference for
+// Daraja's OriginatorConversationID — Daraja's existing per-request
+// dedupe key. Behaviour for callers who pre-date IdempotencyKey is
+// preserved (Reference falls through when IdempotencyKey is empty).
+func TestB2CIdempotencyKeyPrecedence(t *testing.T) {
+	var captured map[string]interface{}
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/oauth/"):
+			_, _ = w.Write([]byte(`{"access_token":"tok","expires_in":"3599"}`))
+		case r.URL.Path == "/mpesa/b2c/v3/paymentrequest":
+			body, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(body, &captured)
+			_, _ = w.Write([]byte(`{"ConversationID":"AG","OriginatorConversationID":"k","ResponseCode":"0","ResponseDescription":"ok"}`))
+		}
+	})
+
+	req := b2cReq("254712345678", "1500", "ref-fallback", "credit")
+	req.IdempotencyKey = "idem-wins"
+	if _, err := p.CreatePayment(context.Background(), &req); err != nil {
+		t.Fatalf("CreatePayment: %v", err)
+	}
+	if got := captured["OriginatorConversationID"]; got != "idem-wins" {
+		t.Fatalf("OriginatorConversationID: got %v, want %q (IdempotencyKey must beat Reference)", got, "idem-wins")
+	}
+
+	// Same request, no IdempotencyKey → fall back to Reference.
+	captured = nil
+	req.IdempotencyKey = ""
+	if _, err := p.CreatePayment(context.Background(), &req); err != nil {
+		t.Fatalf("CreatePayment: %v", err)
+	}
+	if got := captured["OriginatorConversationID"]; got != "ref-fallback" {
+		t.Fatalf("OriginatorConversationID fallback: got %v, want %q", got, "ref-fallback")
+	}
+}
+
 func TestB2CRejectsNonIntegerKES(t *testing.T) {
 	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"access_token":"tok","expires_in":"3599"}`))

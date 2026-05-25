@@ -326,8 +326,16 @@ func (p *Provider) createB2C(ctx context.Context, req *types.CreatePaymentReques
 	if err != nil {
 		return nil, err
 	}
+	// Daraja's OriginatorConversationID IS the caller-supplied idempotency
+	// token (returned verbatim on duplicate submissions). Prefer the
+	// explicit IdempotencyKey when set; fall back to Reference for
+	// backward-compat with callers that pre-date the field.
+	origConvID := req.IdempotencyKey
+	if origConvID == "" {
+		origConvID = req.Reference
+	}
 	body := map[string]interface{}{
-		"OriginatorConversationID": req.Reference,
+		"OriginatorConversationID": origConvID,
 		"InitiatorName":            p.cfg.InitiatorName,
 		"SecurityCredential":       cred,
 		"CommandID":                "BusinessPayment",
