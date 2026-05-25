@@ -1,11 +1,8 @@
 package plaid
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -29,6 +26,9 @@ type Provider struct {
 	client *http.Client
 }
 
+// New constructs a placeholder Plaid provider. It is not registered by
+// cmd/treasuryd/main.go and every Provider method returns ErrNotSupported.
+// See doc.go.
 func New(cfg Config) provider.Provider {
 	return &Provider{
 		cfg:    cfg,
@@ -38,115 +38,63 @@ func New(cfg Config) provider.Provider {
 
 func (p *Provider) Name() string { return "plaid" }
 
-func (p *Provider) doRequest(ctx context.Context, path string, body interface{}) ([]byte, error) {
-	// Plaid requires client_id and secret in every request body
-	payload := map[string]interface{}{
-		"client_id": p.cfg.ClientID,
-		"secret":    p.cfg.Secret,
-	}
-	if body != nil {
-		if m, ok := body.(map[string]interface{}); ok {
-			for k, v := range m {
-				payload[k] = v
-			}
-		}
-	}
-
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", p.cfg.BaseURL+path, bytes.NewReader(b))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("plaid API error %d: %s", resp.StatusCode, string(data))
-	}
-	return data, nil
+func notImpl(method string) error {
+	return fmt.Errorf("plaid adapter not implemented (%s) — see doc.go: %w", method, provider.ErrNotSupported)
 }
-
-// --- Accounts (requires access_token from Link flow) ---
 
 func (p *Provider) CreateAccount(_ context.Context, _ string, _ *provider.CreateAccountRequest) (*types.BankAccount, error) {
-	return nil, fmt.Errorf("plaid: use Link flow to connect bank accounts, not direct creation")
+	return nil, notImpl("CreateAccount")
 }
-
-func (p *Provider) GetAccount(ctx context.Context, accountID string) (*types.BankAccount, error) {
-	return nil, provider.ErrNotSupported
+func (p *Provider) GetAccount(_ context.Context, _ string) (*types.BankAccount, error) {
+	return nil, notImpl("GetAccount")
 }
-
-func (p *Provider) ListAccounts(ctx context.Context, orgID string) ([]*types.BankAccount, error) {
-	// This would require an access_token per linked institution
-	return nil, provider.ErrNotSupported
+func (p *Provider) ListAccounts(_ context.Context, _ string) ([]*types.BankAccount, error) {
+	return nil, notImpl("ListAccounts")
 }
-
-func (p *Provider) GetBalance(ctx context.Context, accountID string) (*types.Balance, error) {
-	return nil, provider.ErrNotSupported
+func (p *Provider) GetBalance(_ context.Context, _ string) (*types.Balance, error) {
+	return nil, notImpl("GetBalance")
 }
-
-// --- Payments (Plaid is read-only for transactions) ---
 
 func (p *Provider) CreatePayment(_ context.Context, _ *types.CreatePaymentRequest) (*types.Payment, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("CreatePayment")
 }
-
 func (p *Provider) GetPayment(_ context.Context, _ string) (*types.Payment, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("GetPayment")
 }
-
 func (p *Provider) ListPayments(_ context.Context, _ string) ([]*types.Payment, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("ListPayments")
 }
-
 func (p *Provider) CancelPayment(_ context.Context, _ string) error {
-	return provider.ErrNotSupported
+	return notImpl("CancelPayment")
 }
-
-// --- FX (not supported) ---
 
 func (p *Provider) GetFXQuote(_ context.Context, _, _, _, _ string) (*types.FXQuote, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("GetFXQuote")
 }
-
 func (p *Provider) CreateFXConversion(_ context.Context, _ *types.CreateFXConversionRequest) (*types.FXConversion, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("CreateFXConversion")
 }
-
 func (p *Provider) ListFXConversions(_ context.Context) ([]*types.FXConversion, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("ListFXConversions")
 }
-
-// --- Counterparties (not applicable) ---
 
 func (p *Provider) CreateCounterparty(_ context.Context, _ *types.Counterparty) (*types.Counterparty, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("CreateCounterparty")
 }
-
 func (p *Provider) ListCounterparties(_ context.Context) ([]*types.Counterparty, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("ListCounterparties")
 }
 
+// Capabilities returns a fully-empty capability set. The Plaid adapter
+// has zero real capabilities until a real implementation lands; routing
+// logic MUST treat this provider as supporting nothing.
 func (p *Provider) Capabilities() *types.ProviderCapability {
 	return &types.ProviderCapability{
 		Name:         "plaid",
 		PaymentTypes: []string{},
-		Currencies:   []string{"USD"},
-		Features:     []string{"bank_linking", "identity", "transactions", "balance", "kyc", "auth"},
-		Countries:    []string{"US", "CA", "GB"},
-		Status:       "active",
+		Currencies:   []string{},
+		Features:     []string{},
+		Countries:    []string{},
+		Status:       "placeholder",
 	}
 }

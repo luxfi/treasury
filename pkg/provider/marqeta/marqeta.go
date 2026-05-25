@@ -1,11 +1,8 @@
 package marqeta
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -29,95 +26,72 @@ type Provider struct {
 	client *http.Client
 }
 
+// New constructs a placeholder Marqeta provider. It is not registered by
+// cmd/treasuryd/main.go and every Provider method returns ErrNotSupported.
+// See doc.go.
 func New(cfg Config) provider.Provider {
 	return &Provider{cfg: cfg, client: &http.Client{Timeout: 30 * time.Second}}
 }
 
 func (p *Provider) Name() string { return "marqeta" }
 
-func (p *Provider) doRequest(ctx context.Context, method, path string, body interface{}) ([]byte, error) {
-	var reqBody io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return nil, err
-		}
-		reqBody = bytes.NewReader(b)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, p.cfg.BaseURL+"/v3"+path, reqBody)
-	if err != nil {
-		return nil, err
-	}
-	req.SetBasicAuth(p.cfg.AppToken, p.cfg.AccessToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("marqeta API error %d: %s", resp.StatusCode, string(data))
-	}
-	return data, nil
+func notImpl(method string) error {
+	return fmt.Errorf("marqeta adapter not implemented (%s) — see doc.go: %w", method, provider.ErrNotSupported)
 }
 
 func (p *Provider) CreateAccount(_ context.Context, _ string, _ *provider.CreateAccountRequest) (*types.BankAccount, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("CreateAccount")
 }
 func (p *Provider) GetAccount(_ context.Context, _ string) (*types.BankAccount, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("GetAccount")
 }
 func (p *Provider) ListAccounts(_ context.Context, _ string) ([]*types.BankAccount, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("ListAccounts")
 }
 func (p *Provider) GetBalance(_ context.Context, _ string) (*types.Balance, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("GetBalance")
 }
 
 func (p *Provider) CreatePayment(_ context.Context, _ *types.CreatePaymentRequest) (*types.Payment, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("CreatePayment")
 }
 func (p *Provider) GetPayment(_ context.Context, _ string) (*types.Payment, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("GetPayment")
 }
 func (p *Provider) ListPayments(_ context.Context, _ string) ([]*types.Payment, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("ListPayments")
 }
 func (p *Provider) CancelPayment(_ context.Context, _ string) error {
-	return provider.ErrNotSupported
+	return notImpl("CancelPayment")
 }
 
 func (p *Provider) GetFXQuote(_ context.Context, _, _, _, _ string) (*types.FXQuote, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("GetFXQuote")
 }
 func (p *Provider) CreateFXConversion(_ context.Context, _ *types.CreateFXConversionRequest) (*types.FXConversion, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("CreateFXConversion")
 }
 func (p *Provider) ListFXConversions(_ context.Context) ([]*types.FXConversion, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("ListFXConversions")
 }
 
 func (p *Provider) CreateCounterparty(_ context.Context, _ *types.Counterparty) (*types.Counterparty, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("CreateCounterparty")
 }
 func (p *Provider) ListCounterparties(_ context.Context) ([]*types.Counterparty, error) {
-	return nil, provider.ErrNotSupported
+	return nil, notImpl("ListCounterparties")
 }
 
+// Capabilities returns a fully-empty capability set. The Marqeta adapter
+// has zero real capabilities until a real implementation lands; routing
+// logic MUST treat this provider as supporting nothing.
 func (p *Provider) Capabilities() *types.ProviderCapability {
 	return &types.ProviderCapability{
 		Name:         "marqeta",
-		PaymentTypes: []string{"card"},
-		Currencies:   []string{"USD"},
-		Features:     []string{"card_issuing", "virtual_cards", "physical_cards", "spend_controls", "tokenization"},
-		Countries:    []string{"US"},
-		Status:       "active",
+		PaymentTypes: []string{},
+		Currencies:   []string{},
+		Features:     []string{},
+		Countries:    []string{},
+		Status:       "placeholder",
 	}
 }
