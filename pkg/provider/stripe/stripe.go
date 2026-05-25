@@ -33,6 +33,13 @@ func New(cfg Config) provider.Provider {
 func (p *Provider) Name() string { return "stripe" }
 
 func (p *Provider) doRequest(ctx context.Context, method, path string, form url.Values) ([]byte, error) {
+	return p.doRequestIdem(ctx, method, path, form, "")
+}
+
+// doRequestIdem is doRequest with an optional Stripe Idempotency-Key.
+// Empty idemKey means "do not send the header" — used for GETs and for
+// endpoints that don't accept idempotency.
+func (p *Provider) doRequestIdem(ctx context.Context, method, path string, form url.Values, idemKey string) ([]byte, error) {
 	var body io.Reader
 	if form != nil {
 		body = strings.NewReader(form.Encode())
@@ -45,6 +52,10 @@ func (p *Provider) doRequest(ctx context.Context, method, path string, form url.
 	req.Header.Set("Authorization", "Bearer "+p.cfg.SecretKey)
 	if form != nil {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+	if idemKey != "" {
+		// https://stripe.com/docs/api/idempotent_requests
+		req.Header.Set("Idempotency-Key", idemKey)
 	}
 
 	resp, err := p.client.Do(req)
@@ -171,7 +182,13 @@ func (p *Provider) CreatePayment(ctx context.Context, req *types.CreatePaymentRe
 		form.Set("destination_payment_method", req.Counterparty.ID)
 	}
 
-	data, err := p.doRequest(ctx, "POST", "/v1/treasury/outbound_payments", form)
+	const endpoint = "/v1/treasury/outbound_payments"
+	idem := req.IdempotencyKey
+	if idem == "" {
+		idem = provider.DeriveIdempotencyKey(req.OrgID, endpoint, []byte(form.Encode()))
+	}
+
+	data, err := p.doRequestIdem(ctx, "POST", endpoint, form, idem)
 	if err != nil {
 		return nil, err
 	}
