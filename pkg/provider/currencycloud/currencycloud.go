@@ -240,7 +240,16 @@ func (p *Provider) CreatePayment(ctx context.Context, req *types.CreatePaymentRe
 	}
 	form.Set("payment_type", "regular")
 
-	data, err := p.doRequest(ctx, "POST", "/v2/payments/create", form)
+	// CurrencyCloud uses a form field "unique_request_id" for idempotency.
+	// https://developer.currencycloud.com/documentation/api/idempotency-keys
+	const endpoint = "/v2/payments/create"
+	idem := req.IdempotencyKey
+	if idem == "" {
+		idem = provider.DeriveIdempotencyKey(req.OrgID, endpoint, []byte(form.Encode()))
+	}
+	form.Set("unique_request_id", idem)
+
+	data, err := p.doRequest(ctx, "POST", endpoint, form)
 	if err != nil {
 		return nil, err
 	}
@@ -380,7 +389,14 @@ func (p *Provider) CreateFXConversion(ctx context.Context, req *types.CreateFXCo
 	form.Set("fixed_side", req.FixedSide)
 	form.Set("term_agreement", "true")
 
-	data, err := p.doRequest(ctx, "POST", "/v2/conversions/create", form)
+	const endpoint = "/v2/conversions/create"
+	idem := req.IdempotencyKey
+	if idem == "" {
+		idem = provider.DeriveIdempotencyKey(req.OrgID, endpoint, []byte(form.Encode()))
+	}
+	form.Set("unique_request_id", idem)
+
+	data, err := p.doRequest(ctx, "POST", endpoint, form)
 	if err != nil {
 		return nil, err
 	}
