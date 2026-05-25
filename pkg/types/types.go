@@ -124,6 +124,11 @@ type Counterparty struct {
 	BankName      string `json:"bank_name,omitempty"`
 	BankCountry   string `json:"bank_country,omitempty"`
 	Email         string `json:"email,omitempty"`
+
+	// IdempotencyKey, if non-empty, is forwarded as the provider's
+	// idempotency header / field on counterparty creation. Empty →
+	// adapter derives one deterministically via DeriveIdempotencyKey.
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }
 
 // --- FX Types ---

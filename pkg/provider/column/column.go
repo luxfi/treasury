@@ -81,7 +81,12 @@ func (p *Provider) CreateAccount(ctx context.Context, orgID string, req *provide
 		"description": req.AccountName,
 	}
 
-	data, err := p.doRequest(ctx, "POST", "/bank-accounts", body)
+	idem := req.IdempotencyKey
+	if idem == "" {
+		canonical, _ := json.Marshal(body)
+		idem = provider.DeriveIdempotencyKey(orgID, "/bank-accounts", canonical)
+	}
+	data, err := p.doRequestIdem(ctx, "POST", "/bank-accounts", body, idem)
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +336,12 @@ func (p *Provider) CreateCounterparty(ctx context.Context, cp *types.Counterpart
 		"routing_number": cp.RoutingNumber,
 	}
 
-	data, err := p.doRequest(ctx, "POST", "/counterparties", body)
+	idem := cp.IdempotencyKey
+	if idem == "" {
+		canonical, _ := json.Marshal(body)
+		idem = provider.DeriveIdempotencyKey("", "/counterparties", canonical)
+	}
+	data, err := p.doRequestIdem(ctx, "POST", "/counterparties", body, idem)
 	if err != nil {
 		return nil, err
 	}

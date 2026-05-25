@@ -79,7 +79,11 @@ func (p *Provider) CreateAccount(ctx context.Context, orgID string, req *provide
 	form.Set("supported_currencies[]", req.Currency)
 	form.Set("features[]", "financial_addresses.aba")
 
-	data, err := p.doRequest(ctx, "POST", "/v1/treasury/financial_accounts", form)
+	idem := req.IdempotencyKey
+	if idem == "" {
+		idem = provider.DeriveIdempotencyKey(orgID, "/v1/treasury/financial_accounts", []byte(form.Encode()))
+	}
+	data, err := p.doRequestIdem(ctx, "POST", "/v1/treasury/financial_accounts", form, idem)
 	if err != nil {
 		return nil, err
 	}

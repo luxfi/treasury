@@ -88,7 +88,12 @@ func (p *Provider) CreateAccount(ctx context.Context, orgID string, req *provide
 		},
 	}
 
-	data, err := p.doRequest(ctx, "POST", "/accounts", body)
+	idem := req.IdempotencyKey
+	if idem == "" {
+		canonical, _ := json.Marshal(body)
+		idem = provider.DeriveIdempotencyKey(orgID, "/accounts", canonical)
+	}
+	data, err := p.doRequestIdem(ctx, "POST", "/accounts", body, idem)
 	if err != nil {
 		return nil, err
 	}
