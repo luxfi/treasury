@@ -66,11 +66,14 @@ const pathPrefix = "/tapiv3/index.php/v3"
 // in one method does not silently misroute through the registry).
 const providerName = "northcapital"
 
-// ErrNotImplemented is reserved for genuinely-unimplemented entry
-// points; every interface method on Provider has a real body. It is
-// retained as the documented sentinel for LoadFromKMS, which is the
-// only place still waiting on the luxfi/kms wiring (a separate
-// workstream from the adapter itself).
+// ErrNotImplemented is the sentinel reserved for entry points that
+// have no real body. Every interface method on Provider has a real
+// body — including LoadFromKMS, which now lives in kms.go as a real
+// implementation against a KMSGetter interface. The sentinel is
+// retained for forward-compat: any future method added to the
+// Provider surface that ships its scaffold ahead of its body
+// returns this error so callers can errors.Is and degrade
+// gracefully.
 var ErrNotImplemented = errors.New("northcapital: method not yet implemented")
 
 // Refund is the NCPS-specific extension type returned by
@@ -130,19 +133,10 @@ func New(cfg Config) provider.Provider {
 // Name returns the provider identifier.
 func (p *Provider) Name() string { return providerName }
 
-// LoadFromKMS is the documented hook for hydrating Config from
-// luxfi/kms. The luxfi/kms client wiring is a separate workstream
-// from the adapter; this placeholder defines the integration point.
-//
-// Expected KMS layout (per the integration brief §2):
-//
-//	shared/northcapital/sandbox/clientID
-//	shared/northcapital/sandbox/developerAPIKey
-//	shared/northcapital/prod/clientID
-//	shared/northcapital/prod/developerAPIKey
-func (cfg *Config) LoadFromKMS(_ context.Context, _ string) error {
-	return ErrNotImplemented
-}
+// LoadFromKMS is implemented in kms.go. The signature is
+// (ctx, kms, env) — see kms.go for the KMSGetter interface, error
+// sentinels (ErrKMSKeyMissing, ErrKMSDecryption), and the
+// treasuryd-side wiring sketch against luxfi/kms.
 
 // --- HTTP helper ---
 
