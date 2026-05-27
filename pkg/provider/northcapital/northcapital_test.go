@@ -1,5 +1,5 @@
 // Source-of-design: Public-Spec
-// Source-ref: https://transactapi.readme.io/
+// Source-ref: https://transactapi.readme.io/reference
 
 package northcapital
 
@@ -14,16 +14,20 @@ import (
 	"github.com/luxfi/treasury/pkg/types"
 )
 
-func newTestProvider(t *testing.T, h http.HandlerFunc) provider.Provider {
+func newTestProvider(t *testing.T, h http.HandlerFunc) *Provider {
 	t.Helper()
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
-	return New(Config{
-		BaseURL:         srv.URL,
-		ClientID:        "test-client",
-		DeveloperAPIKey: "test-key",
-		HTTPClient:      srv.Client(),
-	})
+	return &Provider{
+		cfg: Config{
+			BaseURL:         srv.URL,
+			ClientID:        "test-client",
+			DeveloperAPIKey: "test-key",
+			HTTPClient:      srv.Client(),
+			MaxRetries:      2,
+		},
+		client: srv.Client(),
+	}
 }
 
 // TestNew verifies that a Provider can be constructed against the
@@ -96,48 +100,6 @@ func TestCapabilities(t *testing.T) {
 	}
 }
 
-// TestStubsReturnNotImplemented locks the scaffolding contract:
-// every interface method (except the two FX methods, which return
-// the canonical ErrNotSupported) returns ErrNotImplemented until its
-// follow-up pass lands.
-func TestStubsReturnNotImplemented(t *testing.T) {
-	p := newTestProvider(t, func(http.ResponseWriter, *http.Request) {
-		t.Fatal("scaffolding stubs must not issue HTTP traffic")
-	})
-	ctx := context.Background()
-
-	if _, err := p.CreateAccount(ctx, "org-A", &provider.CreateAccountRequest{}); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("CreateAccount: got %v, want ErrNotImplemented", err)
-	}
-	if _, err := p.GetAccount(ctx, "acct-1"); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("GetAccount: got %v, want ErrNotImplemented", err)
-	}
-	if _, err := p.ListAccounts(ctx, "org-A"); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("ListAccounts: got %v, want ErrNotImplemented", err)
-	}
-	if _, err := p.GetBalance(ctx, "acct-1"); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("GetBalance: got %v, want ErrNotImplemented", err)
-	}
-	if _, err := p.CreatePayment(ctx, &types.CreatePaymentRequest{Type: types.PaymentACH}); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("CreatePayment: got %v, want ErrNotImplemented", err)
-	}
-	if _, err := p.GetPayment(ctx, "pay-1"); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("GetPayment: got %v, want ErrNotImplemented", err)
-	}
-	if _, err := p.ListPayments(ctx, "acct-1"); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("ListPayments: got %v, want ErrNotImplemented", err)
-	}
-	if err := p.CancelPayment(ctx, "pay-1"); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("CancelPayment: got %v, want ErrNotImplemented", err)
-	}
-	if _, err := p.CreateCounterparty(ctx, &types.Counterparty{}); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("CreateCounterparty: got %v, want ErrNotImplemented", err)
-	}
-	if _, err := p.ListCounterparties(ctx); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("ListCounterparties: got %v, want ErrNotImplemented", err)
-	}
-}
-
 // TestFXNotSupported pins the conscious choice that TransactAPI is
 // USD-only and explicitly returns the canonical provider.ErrNotSupported
 // (NOT ErrNotImplemented) so callers + the smart-order router can
@@ -157,20 +119,20 @@ func TestFXNotSupported(t *testing.T) {
 	}
 }
 
-// TestPaymentEndpoint covers the PaymentType → TransactAPI endpoint
-// map. A regression in the map silently mis-routes ACH to /sendWire
-// (etc.) in production — exactly the class of bug a single line
+// TestPaymentEndpoint covers the PaymentType → TransactAPI verb map.
+// A regression in the map silently mis-routes ACH to ccFundMovement
+// (etc.) in production — exactly the class of bug a single-line
 // table-test catches.
 func TestPaymentEndpoint(t *testing.T) {
 	cases := []struct {
 		in   types.PaymentType
 		want string
 	}{
-		{types.PaymentACH, "/sendACH"},
-		{types.PaymentWire, "/sendWire"},
-		{types.PaymentCheck, "/sendCheck"},
-		{types.PaymentCard, "/sendCreditCard"},
-		{"ira", "/sendIRA"},
+		{types.PaymentACH, "externalFundMove"},
+		{types.PaymentCard, "ccFundMovement"},
+		{types.PaymentWire, "createCustodyFundMove"},
+		{types.PaymentCheck, "createCustodyFundMove"},
+		{"ira", "createCustodyFundMove"},
 	}
 	for _, tc := range cases {
 		got, err := paymentEndpoint(tc.in)
@@ -184,5 +146,79 @@ func TestPaymentEndpoint(t *testing.T) {
 
 	if _, err := paymentEndpoint(types.PaymentSEPA); err == nil {
 		t.Fatal("paymentEndpoint(sepa): expected unsupported error")
+	}
+}
+
+// TestLoadFromKMSPending pins that LoadFromKMS still returns the
+// sentinel until the luxfi/kms client lands in a separate workstream.
+func TestLoadFromKMSPending(t *testing.T) {
+	cfg := Config{}
+	if err := cfg.LoadFromKMS(context.Background(), "shared/northcapital/sandbox"); !errors.Is(err, ErrNotImplemented) {
+		t.Fatalf("LoadFromKMS: got %v, want ErrNotImplemented", err)
+	}
+}
+
+// TestMapPaymentStatus pins the TAPI→unified status translation. A
+// drift here misreports settlement state into the double-entry
+// ledger downstream.
+func TestMapPaymentStatus(t *testing.T) {
+	cases := map[string]types.PaymentStatus{
+		"Pending":   types.PaymentPending,
+		"pending":   types.PaymentPending,
+		"":          types.PaymentPending,
+		"Settled":   types.PaymentCompleted,
+		"settled":   types.PaymentCompleted,
+		"Returned":  types.PaymentReturned,
+		"Submitted": types.PaymentProcessing,
+		"Voided":    types.PaymentCancelled,
+		"Declined":  types.PaymentFailed,
+		"weird":     types.PaymentPending, // unknown → pending, never dropped
+	}
+	for in, want := range cases {
+		if got := mapPaymentStatus(in); got != want {
+			t.Fatalf("mapPaymentStatus(%q): got %q, want %q", in, got, want)
+		}
+	}
+}
+
+// TestSplitName and TestFirstNonEmpty pin the small helpers that
+// feed body construction.
+func TestSplitName(t *testing.T) {
+	cases := []struct {
+		in           string
+		first, last  string
+	}{
+		{"Jane Doe", "Jane", "Doe"},
+		{"Jane Mary Doe", "Jane", "Mary Doe"},
+		{"Cher", "Cher", ""},
+		{"", "", ""},
+	}
+	for _, c := range cases {
+		f, l := splitName(c.in)
+		if f != c.first || l != c.last {
+			t.Fatalf("splitName(%q): got %q,%q want %q,%q", c.in, f, l, c.first, c.last)
+		}
+	}
+}
+
+func TestFirstNonEmpty(t *testing.T) {
+	if got := firstNonEmpty("", "", "x", "y"); got != "x" {
+		t.Fatalf("firstNonEmpty: got %q want x", got)
+	}
+	if got := firstNonEmpty(); got != "" {
+		t.Fatalf("firstNonEmpty empty: got %q want empty", got)
+	}
+}
+
+func TestMetaOrDefault(t *testing.T) {
+	m := map[string]string{"k": "v"}
+	if got := metaOrDefault(m, "k", "d"); got != "v" {
+		t.Fatalf("metaOrDefault hit: %q", got)
+	}
+	if got := metaOrDefault(m, "missing", "d"); got != "d" {
+		t.Fatalf("metaOrDefault miss: %q", got)
+	}
+	if got := metaOrDefault(nil, "k", "d"); got != "d" {
+		t.Fatalf("metaOrDefault nil: %q", got)
 	}
 }
