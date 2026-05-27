@@ -149,12 +149,20 @@ func TestPaymentEndpoint(t *testing.T) {
 	}
 }
 
-// TestLoadFromKMSPending pins that LoadFromKMS still returns the
-// sentinel until the luxfi/kms client lands in a separate workstream.
-func TestLoadFromKMSPending(t *testing.T) {
+// TestLoadFromKMSWired pins that LoadFromKMS is a real entry point
+// now (no longer ErrNotImplemented). The deep conformance tests
+// live in kms_test.go; this case is a smoke test that the (ctx,
+// KMSGetter, env) signature behaves on the unknown-env validation
+// path. ErrNotImplemented is retained as the sentinel for any
+// future Provider method that ships its scaffold ahead of its body.
+func TestLoadFromKMSWired(t *testing.T) {
 	cfg := Config{}
-	if err := cfg.LoadFromKMS(context.Background(), "shared/northcapital/sandbox"); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("LoadFromKMS: got %v, want ErrNotImplemented", err)
+	err := cfg.LoadFromKMS(context.Background(), newMockKMS(), "staging")
+	if err == nil {
+		t.Fatal("LoadFromKMS unknown env: got nil, want error")
+	}
+	if errors.Is(err, ErrNotImplemented) {
+		t.Fatal("LoadFromKMS is now wired: must not return ErrNotImplemented")
 	}
 }
 
