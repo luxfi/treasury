@@ -26,7 +26,7 @@ type Transaction struct {
 }
 
 // Posting is a single source→destination movement within a transaction.
-// Asset format: "USD/2" (currency/decimals), "BTC/8", "/18".
+// Asset format: "USD/2" (currency/decimals), "BTC/8", "LUX/18".
 type Posting struct {
 	ID            int64  `json:"id,omitempty"`
 	TransactionID int64  `json:"transaction_id,omitempty"`

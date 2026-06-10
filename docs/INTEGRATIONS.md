@@ -16,7 +16,7 @@ Strict double-entry, multi-tenant by ledger name, immutable history.
 |----------------|------|
 | `Account`      | Address-keyed (`users:alice:main`, `platform:fees`). Typed asset / liability / equity / revenue / expense. Tenancy via `ledger` column. |
 | `Transaction`  | Atomic group of postings. Carries `Reference` (idempotency key) and metadata. Reversal is by *new* transaction with `RevertedAt` marker — never mutation. |
-| `Posting`      | A single `source → destination` movement of an `Asset` (`USD/2`, `BTC/8`, `/18` — currency / decimals) for an `Amount` (arbitrary-precision decimal string). |
+| `Posting`      | A single `source → destination` movement of an `Asset` (`USD/2`, `BTC/8`, `LUX/18` — currency / decimals) for an `Amount` (arbitrary-precision decimal string). |
 | `Move`         | Per-account materialisation of a posting. Two moves per posting (source = debit, destination = credit). Carries `PostCommitInputs/Outputs` so balances are reconstructable per row. |
 | `Volumes`      | Running totals of inputs (credits) and outputs (debits) per `account + asset`. Balance = `inputs − outputs`. |
 | `LogEntry`     | Append-only audit trail keyed by `IdempotencyKey`; supports hash chaining for tamper-evidence. |
