@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   goreleaser:
-    runs-on: evo
+    runs-on: [self-hosted, linux, amd64]
     steps:
       - uses: actions/checkout@v4
         with:
