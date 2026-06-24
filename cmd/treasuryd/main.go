@@ -23,7 +23,6 @@ import (
 	"github.com/luxfi/treasury/pkg/provider/mpesa"
 	_ "github.com/luxfi/treasury/pkg/provider/plaid" // placeholder — see pkg/provider/plaid/doc.go
 	"github.com/luxfi/treasury/pkg/provider/square"
-	"github.com/luxfi/treasury/pkg/provider/column"
 	"github.com/luxfi/treasury/pkg/provider/unit"
 	"github.com/luxfi/treasury/pkg/provider/wise"
 )
@@ -63,15 +62,6 @@ func main() {
 		log.Info().Msg("Modern Treasury provider registered")
 	}
 
-	// Column Treasury — BaaS
-	if key := os.Getenv("COLUMN_API_KEY"); key != "" {
-		registry.Register(column.New(column.Config{
-			BaseURL:   envOr("COLUMN_BASE_URL", column.ProdURL),
-			SecretKey: key,
-		}))
-		log.Info().Msg("Column Treasury provider registered")
-	}
-
 	// Column — direct bank access (Fed member)
 	if key := os.Getenv("COLUMN_API_KEY"); key != "" {
 		registry.Register(column.New(column.Config{
@@ -99,7 +89,7 @@ func main() {
 			Msg("marqeta adapter is a placeholder, skipping registration")
 	}
 
-	// Bridge (by Column) — stablecoin orchestration
+	// Bridge — stablecoin orchestration
 	if key := os.Getenv("BRIDGE_API_KEY"); key != "" {
 		registry.Register(bridge.New(bridge.Config{
 			BaseURL: envOr("BRIDGE_BASE_URL", bridge.ProdURL),

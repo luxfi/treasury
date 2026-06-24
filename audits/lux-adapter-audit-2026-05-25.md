@@ -35,7 +35,6 @@ the adapter ships its own callback parser (only mpesa does).
 | treasury/mpesa | Y | Y (OAuth + RSA-OAEP) | N/A | partial (no sig verify) | Y | partial | Y | Y | Y | Y | one-day fix |
 | treasury/plaid | N (stub) | partial | N | N | partial | N | N | Y | Y | N | rewrite |
 | treasury/square | partial | Y | N | N | partial | partial (1 site only) | N | Y | Y | N | needs work |
-| treasury/column | partial | Y | N | N | partial | N | N | Y | Y | N | needs work |
 | treasury/unit | partial | Y | N | N | partial | N | N | Y | Y | N | needs work |
 | treasury/wise | partial | Y | N | N | partial | N | N | Y | Y | N | needs work |
 | forex/circle | partial | Y | N/A | N | partial | Y (1 site) | partial | N/A | Y | Y | one-day fix |
@@ -202,20 +201,6 @@ the adapter ships its own callback parser (only mpesa does).
 - **Recommended action**: Take idempotency key from request, add webhook + parsed errors + ACH (Square has it via `/v2/payments` with `source_id` from bank-account flow) + tests.
 - **Effort**: M.
 
-### treasury/column — `treasury/pkg/provider/column/column.go`
-- **Coverage**: Column Treasury financial_accounts + outbound_payments + cancel. No inbound_transfers, no received_credits/debits, no FX, no counterparties (Column FinancialConnections / receiver flows unimplemented).
-- **Auth**: Bearer secret key (`column.go:45`). Correct.
-- **Pagination**: `ListAccounts` / `ListPayments` ignore `starting_after` (`column.go:124-151,229-263`). Column's standard cursor.
-- **Webhook**: None. Column signs with `Idempotency-Key` header HMAC-SHA256 with a timestamp — unhandled.
-- **Errors**: Raw body (`column.go:61`). Column returns rich `error.{type,code,message,request_id}` — unparsed.
-- **Idempotency**: No `Idempotency-Key` header. Column accepts and dedupes on it for **every** mutating request.
-- **Tests**: None.
-- **Capabilities**: Populated (`column.go:288`).
-- **Registration**: `COLUMN_API_KEY` (`cmd/treasuryd/main.go:69`).
-- **Doc.go**: Missing.
-- **Recommended action**: Idempotency + webhook (this is the Column baseline) + parsed errors + inbound_transfer + FinancialConnections + tests.
-- **Effort**: M.
-
 ### treasury/unit — `treasury/pkg/provider/unit/unit.go`
 - **Coverage**: deposit accounts + balance + achPayment create/get/list. No wire (despite Capabilities), no book, no card, no cancel, no counterparty (Unit has `counterparty` resource).
 - **Auth**: Bearer (`unit.go:53`) + correct `application/vnd.api+json` content type (`unit.go:54`).
@@ -323,7 +308,6 @@ the adapter ships its own callback parser (only mpesa does).
 - **treasury/moderntreasury** — no idempotency on Modern Treasury POSTs is a real correctness bug (their dedup window is your protection); Capabilities advertises ledger + virtual_accounts not implemented.
 - **treasury/increase** — same idempotency + webhook gap; swallows unmarshal errors.
 - **treasury/square** — idempotency is wall-clock-derived, not request-content-derived — defeats the purpose.
-- **treasury/column** — no idempotency on Column Treasury POSTs is the same correctness bug; webhook signature verification missing.
 - **forex/lmax** — REST session login not implemented; will not authenticate in prod.
 
 ## Recommended batch plan
@@ -356,8 +340,7 @@ Unblocks: SF Private Bank card issuance + PSP card acceptance.
 Adapters not in any batch (defer): **forex/openpay** (rewrite when EU SEPA
 lane lights up — not on the SF Private Bank critical path), **treasury/mercury**
 (neobank, not on the SF Private Bank front-office critical path),
-**treasury/unit** (BaaS alternative to Column — pick one), **treasury/column
-Treasury** (overlap with Column for US rails — pick the Fed-member),
+**treasury/unit** (BaaS alternative to Column — pick one),
 **treasury/bridge** (stablecoin orchestration — separate Q3 workstream),
 **treasury/moderntreasury** (orchestration layer — overlap with what
 treasuryd itself is becoming), **treasury/mpesa** (already done),

@@ -2,7 +2,7 @@
 // North Capital TransactAPI payments rail (ACH / credit card / wire /
 // check / IRA) — Workstream 5 of the integration brief.
 //
-// Conforms to the provider.Provider interface (sibling to column,
+// Conforms to the provider.Provider interface (sibling to
 // wise, mercury, increase, column, unit, marqeta, lithic, mpesa,
 // bridge, currencycloud, plaid, square, moderntreasury). All payments
 // flow into the same double-entry treasury ledger as every other

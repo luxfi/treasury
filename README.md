@@ -9,7 +9,7 @@ Institutional treasury management platform with 13 banking/payment providers, do
 |----------|-------------|
 | **Mercury** | Business banking, ACH, wires |
 | **Column** | Direct Fed member, ACH/wire/RTP/FedNow |
-| **Bridge** (Column) | Stablecoin orchestration, on/off ramp |
+| **Bridge** | Stablecoin orchestration, on/off ramp |
 | **Increase** | Banking infrastructure, ACH/wire/RTP/checks |
 | **Modern Treasury** | Payment operations, ledger, virtual accounts |
 | **Unit** | BaaS, white-label checking/savings |
@@ -17,7 +17,6 @@ Institutional treasury management platform with 13 banking/payment providers, do
 ### Payments
 | Provider | Capabilities |
 |----------|-------------|
-| **Column** | Treasury BaaS, financial accounts |
 | **Square** | Payments, commerce, invoicing |
 | **Wise** | International transfers, multi-currency, FX |
 | **CurrencyCloud** (Visa) | Institutional FX, cross-border payments |
@@ -70,7 +69,7 @@ go build -o treasuryd ./cmd/treasuryd/
 MERCURY_API_KEY=... ./treasuryd
 
 # Or with multiple providers
-COLUMN_API_KEY=... COLUMN_API_KEY=... WISE_API_TOKEN=... ./treasuryd
+COLUMN_API_KEY=... WISE_API_TOKEN=... ./treasuryd
 ```
 
 ## API
@@ -130,7 +129,6 @@ All endpoints under `/api/v1/` on port `:8091` (configurable via `TREASURY_LISTE
 | `INCREASE_API_KEY` | Increase |
 | `MODERN_TREASURY_ORG_ID` / `MODERN_TREASURY_API_KEY` | Modern Treasury |
 | `UNIT_TOKEN` | Unit |
-| `COLUMN_API_KEY` | Column Treasury |
 | `SQUARE_ACCESS_TOKEN` | Square |
 | `WISE_API_TOKEN` / `WISE_PROFILE_ID` | Wise |
 | `CURRENCYCLOUD_LOGIN_ID` / `CURRENCYCLOUD_API_KEY` | CurrencyCloud |
