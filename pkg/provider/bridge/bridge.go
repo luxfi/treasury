@@ -13,7 +13,7 @@ import (
 	"github.com/luxfi/treasury/pkg/types"
 )
 
-// Bridge (by Column) — stablecoin orchestration API.
+// Bridge — stablecoin orchestration API.
 // Enables USDC <> fiat conversions, cross-border stablecoin payments.
 const ProdURL = "https://api.bridge.xyz"
 

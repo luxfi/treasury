@@ -89,9 +89,9 @@ POST   /api/v1/compliance/check
 GET    /api/v1/compliance/rules
 ```
 
-## Providers (13)
+## Providers (12)
 
-Mercury, Column, Increase, Modern Treasury, Column, Wise, CurrencyCloud, Square, Bridge, Unit, Lithic, Marqeta, Plaid
+Mercury, Column, Increase, Modern Treasury, Wise, CurrencyCloud, Square, Bridge, Unit, Lithic, Marqeta, Plaid
 
 ## Dependencies
 

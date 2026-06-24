@@ -92,7 +92,7 @@ substrate sits behind it. Today's tree covers seven categories:
 |----------|---------|-----------------------|
 | **Bank-rail provider** | Direct ACH / wire / RTP / FedNow against a chartered counterparty. | `pkg/provider/column`, `pkg/provider/increase`, `pkg/provider/mercury`, `pkg/provider/unit` |
 | **Treasury / multi-rail orchestrator** | Unified payment-ops API across many rails and banks; ledger-like primitives over a bank-of-record. | `pkg/provider/moderntreasury` |
-| **Payment gateway** | Card acceptance, treasury balances, payouts. | `pkg/provider/column`, `pkg/provider/square` |
+| **Payment gateway** | Card acceptance, treasury balances, payouts. | `pkg/provider/square` |
 | **Card issuer** | Virtual + physical card issuing, authorisation, settlement. | `pkg/provider/lithic`, `pkg/provider/marqeta` |
 | **Bank-link aggregator** | Account linking, balance read, transaction history, identity. | `pkg/provider/plaid` |
 | **FX / cross-border** | Multi-currency accounts, FX quotes and conversions, local rails in each market. | `pkg/provider/currencycloud`, `pkg/provider/wise` |
