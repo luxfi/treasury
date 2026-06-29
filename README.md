@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/hero.svg" alt="treasury" width="880"></p>
+
 # Lux Treasury
 
 Institutional treasury management platform with 13 banking/payment providers, double-entry ledger, and OFAC compliance.
