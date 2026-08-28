@@ -147,4 +147,4 @@ docker build --platform linux/amd64 -t ghcr.io/luxfi/treasury:latest .
 
 ## License
 
-Copyright 2024-2026, Lux Partners Limited. All rights reserved.
+Copyright 2024-2026, Lux Industries Inc. All rights reserved.
